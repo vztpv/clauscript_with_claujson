@@ -62,7 +62,7 @@ elseif (MSVC)
 	if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
         target_compile_options(${PROGRAM_NAME} PRIVATE
             $<$<CONFIG:Release>:
-                /std:c++17;
+                /std:c++20;
                 /Oi;
                 /GL
             >
