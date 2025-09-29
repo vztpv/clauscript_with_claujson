@@ -9,8 +9,6 @@
 
 int main(void)
 {
-	int start = clock();
-
 	VM vm;
 
 	clau_parser::UserType global;
@@ -25,6 +23,7 @@ int main(void)
 		global.RemoveUserTypeList(arr[i]);
 	}
 
+	int start = clock();
 	vm.Run("main", &global);
 
 	int last = clock();

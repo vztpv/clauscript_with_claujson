@@ -593,10 +593,35 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			}
 			else if (token_stack.back().IsWorkspaceJ()) {
 				Token token;
-				token.SetString(token_stack.back().workspacej.reader->Get().convert_primitive_to_std_string());
-				if (token_stack.back().workspacej.reader->Get().is_str()) {
+				auto& x = token_stack.back().workspacej.reader->Get();
+				if (x.is_int()) {
+					token.SetInt(x.get_integer());
+				}
+				else if (x.is_uint()) {
+					token.SetInt(x.get_unsigned_integer());
+				}
+				else if(x.is_float()) {
+					token.SetFloat(x.get_floating());
+				}
+				else if (x.is_bool()) {
+					token.SetBool(x.get_boolean());
+				}
+				else if (x.is_null()) {
+					token.SetString("null");
+				}
+				else if (x.is_str()) {
+					bool e = false; // error flag
+					token.SetString(x.get_string().get_std_string(e));
 					token.SetString("\"" + token.ToString() + "\"");
 				}
+				else {
+					// object or array
+					// nothing to do
+					token.SetString("");
+				}
+				
+				//token.SetString(token_stack.back().workspacej.reader->Get().convert_primitive_to_std_string());
+
 				token_stack.pop_back();
 				token_stack.push_back(std::move(token));
 			}
