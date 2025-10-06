@@ -1277,7 +1277,7 @@ namespace clau_parser {
 			//
 		}
 		explicit ItemType(std::string&& name, T&& value, const bool valid = true)
-			:Type(std::move(name), valid), data(move(value)), inited(true)
+			:Type(std::move(name), valid), data(std::move(value)), inited(true)
 		{
 			//
 		}
@@ -2238,7 +2238,7 @@ namespace clau_parser {
 
 			ilist.push_back(2);
 
-			userTypeList.push_back(temp);
+			userTypeList.push_back(std::move(temp));
 
 			useSortedUserTypeList = false;
 			useSortedItemList = false;
@@ -2264,7 +2264,7 @@ namespace clau_parser {
 
 			ilist.push_back(2);
 
-			userTypeList.push_back(temp);
+			userTypeList.push_back(std::move(temp));
 
 			useSortedUserTypeList = false;
 			changed = true;
@@ -2929,13 +2929,13 @@ namespace clau_parser {
 				}
 
 				if (x.empty()) {
-					x.push_back(temp);
+					x.push_back(std::move(temp));
 				}
 				else if (x.back() != ".." && temp == "..") {
 					x.pop_back();
 				}
 				else {
-					x.push_back(temp);
+					x.push_back(std::move(temp));
 				}
 			}
 

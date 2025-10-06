@@ -61,6 +61,9 @@ Event = { id = test3 $parameter = { name value is_user_type }
 
 Event = { id = iterate_json $parameter = { workspace event } # recursive?
 	$local = { idx size }
+
+	#$print = { called_iterate_json \n }
+
 	$set_idx = { $parameter.workspace 0 }
 	$assign = { $local.idx $get_idx = { $parameter.workspace } }
 	$assign = { $local.size $get_size = { $parameter.workspace } }
@@ -87,6 +90,9 @@ Event = { id = iterate_json $parameter = { workspace event } # recursive?
 
 Event = { id = test_json
 	 $parameter = { iter name value is_user_type }	
+
+	 #$print = { chk }
+
 	 $if { $is_float = { $parameter.value } } {
 		$set_global = { sum 0 $add = { $get_global = { sum 0 } $parameter.value } }
        #$set_global = { sum $add = { $get_global = { sum } $parameter.value } }
@@ -100,7 +106,11 @@ Event = { id = main
 	
 	$load_json = { "citylots.json" }
 
+	$print = { load_end \n }
+
 	$make_global = { sum 0.0 }
+
+	$print = { make_global_end \n }
 
 	$call = { id = iterate_json workspace = @$return_value event = test_json }
 	

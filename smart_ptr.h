@@ -21,7 +21,7 @@ namespace wiz {
         };
     private:
         Inner* inner = nullptr;
-        int option;
+       // int option;
     private:
         void quit()
         {
@@ -47,7 +47,6 @@ namespace wiz {
             {
                 this->inner = sp.inner;
                 sp.inner->count++;
-                this->option = sp.option; ///
             }
         }
 
@@ -77,7 +76,6 @@ namespace wiz {
     public:
 
         SmartPtr(T* ptr = nullptr)
-            : option(0)
         {
             // ptr <- new T(~~);
             if (ptr) {
@@ -88,7 +86,6 @@ namespace wiz {
         }
 
         SmartPtr(T* ptr, const int option) // option 1,2,..
-            : option(option)
         {
             // ptr <- new T(~~);
             if (ptr) {
@@ -97,13 +94,11 @@ namespace wiz {
                 this->inner->count = 1;
             }
         }
-        SmartPtr(const SmartPtr<T>& sp)
-            : option(sp.option)
+        SmartPtr(const SmartPtr<T>& sp)\
         {
             initFromOther(sp);
         }
         SmartPtr(SmartPtr<T>&& sp) noexcept
-            :option(sp.option)
         {
             Inner* temp = this->inner;
             this->inner = sp.inner;
@@ -142,6 +137,11 @@ namespace wiz {
             return (*inner->ptr);
         }
     public:
+        operator bool() const
+        {
+            return this->inner && this->inner->ptr;
+		}
+
         bool isOnlyOne()const
         {
             return this->inner && this->inner->count == 1;
@@ -182,6 +182,12 @@ namespace wiz {
             }
             return nullptr;
         }
+        operator const T* () const {
+            if (this->inner) {
+                return this->inner->ptr;
+            }
+            return nullptr;
+		}
 
         const T* operator->()const
         {

@@ -7,15 +7,18 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 	claujson::parser p;
 	claujson::Document d;
 
-	Event main = _event_list[id];
-	main.parameter = parameter;
+	Event& main = _event_list[id];
+	//main.parameter = parameter;
+	for (auto& x : parameter) {
+		main.parameter.insert({ x.first, x.second.clone() });
+	}
 	std::vector<Token> token_stack;
 	std::vector<Event> _stack;
 	
 	myMap<std::string, std::vector<Token>> global_var;
 
 	_stack.reserve(1024);
-	_stack.push_back(main);
+	_stack.push_back(main.clone());
 	int count = 0;
 	std::string dir = "";
 
@@ -46,7 +49,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		break;
 		case FUNC::FUNC_IS_INT:
 		{
-			auto token = token_stack.back(); token_stack.pop_back();
+			auto token = std::move(token_stack.back()); token_stack.pop_back();
 
 			token.SetBool(token.IsInt());
 
@@ -55,7 +58,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		break;
 		case FUNC::FUNC_IS_FLOAT:
 		{
-			auto token = token_stack.back(); token_stack.pop_back();
+			auto token = std::move(token_stack.back()); token_stack.pop_back();
 
 			token.SetBool(token.IsFloat());
 
@@ -64,10 +67,10 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		break;
 		case FUNC::FUNC_SPLIT:
 		{
-			auto divider = token_stack.back(); token_stack.pop_back();
+			auto divider = std::move(token_stack.back()); token_stack.pop_back();
 			char ch = divider.ToString()[0];
 
-			auto dir = token_stack.back(); token_stack.pop_back();
+			auto dir = std::move(token_stack.back()); token_stack.pop_back();
 			auto& dest = global_var[dir.ToString()];
 
 			auto str = token_stack.back().ToString(); token_stack.pop_back();
@@ -87,30 +90,30 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 
 			auto dir = token_stack.back().ToString(); token_stack.pop_back();
 
-			token_stack.push_back(global_var[dir][idx]);
+			token_stack.push_back(global_var[dir][idx].clone());
 		}
 		break;
 		case FUNC::FUNC_SET_GLOBAL:
 		{
-			auto value = token_stack.back(); token_stack.pop_back();
+			auto value = std::move(token_stack.back()); token_stack.pop_back();
 			auto idx = token_stack.back().ToInt(); token_stack.pop_back();
 			auto dir = token_stack.back().ToString(); token_stack.pop_back();
 
-			global_var[dir][idx] = value;
+			global_var[dir][idx] = std::move(value);
 		}
 		break;
 		case FUNC::FUNC_MAKE_GLOBAL:
 		{
-			auto init = token_stack.back(); token_stack.pop_back();
+			auto init = std::move(token_stack.back()); token_stack.pop_back();
 
-			auto dir = token_stack.back(); token_stack.pop_back();
+			auto dir = std::move(token_stack.back()); token_stack.pop_back();
 			
-			global_var[dir.ToString()].push_back(init);
+			global_var[dir.ToString()].push_back(std::move(init));
 		}
 		break;
 		case FUNC::FUNC_CLEAR_GLOBAL:
 		{
-			auto dir = token_stack.back(); token_stack.pop_back();
+			auto dir = std::move(token_stack.back()); token_stack.pop_back();
 
 			auto& dest = global_var[dir.ToString()];
 	
@@ -119,12 +122,12 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		break;	
 		case FUNC::FUNC_REMOVE:
 		{
-			auto dir = token_stack.back(); token_stack.pop_back();
+			auto dir = std::move(token_stack.back()); token_stack.pop_back();
 
 			auto arr = Find(global, dir.ToString());
 
 			for (int i = 0; i < arr.size(); ++i) {
-				auto ut = arr[i].workspace.reader->GetUT();
+				auto ut = arr[i].workspace.GetReader()->GetUT();
 				auto parent = ut->GetParent();
 
 				for (int j = 0; j < parent->GetUserTypeListSize(); ++j) {
@@ -137,7 +140,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		break; 
 		case FUNC::FUNC_COUNT_GLOBAL:
 		{
-			auto dir = token_stack.back(); token_stack.pop_back();
+			auto dir = std::move(token_stack.back()); token_stack.pop_back();
 
 			const auto& arr = global_var[dir.ToString()];
 			Token token;
@@ -149,15 +152,15 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		{
 			x.now++;
 
-			auto ut = (*x.input)[x.event_data[x.now]];
-			auto to = token_stack.back(); token_stack.pop_back();
-			auto dir = token_stack.back(); token_stack.pop_back();
+			auto& ut = (*x.input)[x.event_data[x.now]];
+			auto to = std::move(token_stack.back()); token_stack.pop_back();
+			auto dir = std::move(token_stack.back()); token_stack.pop_back();
 
-			auto workspace = this->Find(global, dir.ToString())[0].workspace;
-			auto dest = this->Find(global, to.ToString())[0].workspace;
+			auto& workspace = this->Find(global, dir.ToString())[0].workspace;
+			auto& dest = this->Find(global, to.ToString())[0].workspace;
 
 			for (int i = 2; i < ut.ut_val->GetUserTypeListSize(); ++i) {
-				this->SearchFunc(workspace.reader->GetUT(), ut.ut_val->GetUserTypeList(i), dest.reader->GetUT(), this);
+				this->SearchFunc(workspace.GetReader()->GetUT(), ut.ut_val->GetUserTypeList(i), dest.GetReader()->GetUT(), this);
 			}
 		}
 		break;
@@ -165,53 +168,53 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		{
 			x.now++;
 
-			auto ut = (*x.input)[x.event_data[x.now]];
-			auto dir = token_stack.back(); token_stack.pop_back();
+			auto& ut = (*x.input)[x.event_data[x.now]];
+			auto dir = std::move(token_stack.back()); token_stack.pop_back();
 
-			auto workspace = this->Find(global, dir.ToString())[0].workspace;
+			auto& workspace = this->Find(global, dir.ToString())[0].workspace;
 
 
 			for (int i = 1; i < ut.ut_val->GetUserTypeListSize(); ++i) {
 				if (ut.ut_val->GetUserTypeList(i)->GetName() == "$insert"sv) {
-					this->InsertFunc(workspace.reader->GetUT(), ut.ut_val->GetUserTypeList(i), this);
+					this->InsertFunc(workspace.GetReader()->GetUT(), ut.ut_val->GetUserTypeList(i), this);
 				}
 				else if (ut.ut_val->GetUserTypeList(i)->GetName() == "$update"sv) {
-					this->UpdateFunc(workspace.reader->GetUT(), ut.ut_val->GetUserTypeList(i), this);
+					this->UpdateFunc(workspace.GetReader()->GetUT(), ut.ut_val->GetUserTypeList(i), this);
 				}
 				else if (ut.ut_val->GetUserTypeList(i)->GetName() == "$delete"sv) {
-					this->RemoveFunc(workspace.reader->GetUT(), ut.ut_val->GetUserTypeList(i), this);
+					this->RemoveFunc(workspace.GetReader()->GetUT(), ut.ut_val->GetUserTypeList(i), this);
 				}
 			}
 		}
 		break;
 		case FUNC::FUNC_GET:
 		{
-			auto token = token_stack.back();
+			auto token = std::move(token_stack.back());
 			token_stack.pop_back();
 
-			if (token.ToString().starts_with("$local."sv)) {
-
-				token_stack.push_back(x.local[token.ToString().substr(7)]);
+			if (token.IsLocal()) { // ToString().starts_with("$local."sv)) {
+				token.ConvertLocal();
+				token_stack.push_back(x.local[token.ToString()].clone());
 			}
 
 			else {
 				auto value = FindValue(global, token.ToString()); // ToString?
 
-				token_stack.push_back(value[0]);
+				token_stack.push_back(std::move(value[0]));
 			}
 		}
 
 		break;
 		case FUNC::FUNC_ASSIGN:
 		{
-			auto value = token_stack.back();
+			auto value = std::move(token_stack.back());
 			token_stack.pop_back();
 
-			auto name = token_stack.back();
+			auto name = std::move(token_stack.back());
 			token_stack.pop_back();
 
-			if (name.ToString().starts_with("$local."sv)) {
-				x.local[name.ToString().substr(7)] = value;
+			if (name.IsLocal()) { // ToString().starts_with("$local."sv)) {
+				x.local[name.ToString()] = std::move(value);
 			}
 			else {
 				auto idx = name.ToString().find_last_of('/');
@@ -221,10 +224,10 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 					auto ut = Find(global, dir);
 
 					for (int i = 0; i < ut.size(); ++i) {
-						auto arr = ut[i].workspace.reader->GetUT()->GetItemIdx(_name);
+						auto arr = ut[i].workspace.GetReader()->GetUT()->GetItemIdx(_name);
 						
 						for (int j = 0; j < arr.size(); ++j) {
-							ut[i].workspace.reader->GetUT()->GetItemList(arr[j]).Set(0, value.ToString());
+							ut[i].workspace.GetReader()->GetUT()->GetItemList(arr[j]).Set(0, value.ToString());
 						}
 					}
 				}
@@ -238,18 +241,16 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		case FUNC::DIR:
 			////std::cout << "DIR chk" << token_stack.back().ToString() << "\n";
 		{
-			auto str = token_stack.back().ToString();
+			auto& str = token_stack.back();
 
-			if (str.starts_with("$parameter."sv)) {
-				str = str.substr(11);
-
-				Token token = x.parameter[str];
+			if (str.IsParameter()) { //starts_with("$parameter."sv)) {
+				str.ConvertParameter();
+				Token& token = x.parameter[str.ToString()];
 				dir += token.ToString();
 			}
-			else if (str.starts_with("$local."sv)) {
-				str = str.substr(7);
-
-				Token token = x.local[str];
+			else if (str.IsLocal()) {
+				str.ConvertLocal();
+				Token& token = x.local[str.ToString()];
 				dir += token.ToString();
 			}
 			else {
@@ -314,11 +315,11 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 				int count = x.event_data[x.now];
 
 				for (int i = 0; i < count; ++i) {
-					temp.push_back(token_stack.back());
+					temp.push_back(std::move(token_stack.back()));
 					token_stack.pop_back();
 				}
 				for (int i = 0; i < temp.size(); ++i) {
-					return_value.push_back(temp[i]);
+					return_value.push_back(std::move(temp[i]));
 				}
 			}
  			_stack.pop_back();
@@ -331,10 +332,11 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 				//std::cout << value.ToString() << "\n";
 
 				if (value.IsString()) {
-					if (value.ToString().starts_with("$parameter."sv)) {
-						auto param = value.ToString().substr(11);
+					if (value.IsParameter()) { // ToString().starts_with("$parameter."sv)) {
+						value.ConvertParameter();
+						auto param = value.ToString(); // .substr(11);
 
-						token_stack.push_back(x.parameter[param]);
+						token_stack.push_back(x.parameter[param].clone());
 
 						x.now++;
 						continue;
@@ -342,16 +344,16 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 				}
 
 				{
-					token_stack.push_back(value);
+					token_stack.push_back(value.clone());
 				}
 			}
 
 			break;
 		case FUNC::FUNC_ADD:
 		{
-			auto a = token_stack.back();
+			auto a = std::move(token_stack.back());
 			token_stack.pop_back();
-			auto b = token_stack.back();
+			auto b = std::move(token_stack.back());
 			token_stack.pop_back();
 
 			{
@@ -383,9 +385,9 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 				Event e;
 
 				for (int i = 0; i < count; ++i) {
-					auto value = token_stack.back();
+					auto value = std::move(token_stack.back());
 					token_stack.pop_back();
-					auto name = token_stack.back();
+					auto name = std::move(token_stack.back());
 					token_stack.pop_back();
 
 					if (name.ToString() == "id"sv) {
@@ -400,7 +402,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 						continue;
 					}
 
-					e.parameter[name.ToString()] = (value); // name.ToString()
+					e.parameter[name.ToString()] = std::move(value); // name.ToString()
 				}
 
 				////std::cout << "call " << e.id << "\n";
@@ -415,9 +417,9 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		case FUNC::FUNC_COMP_LEFT:
 			// Compare!
 		{
-			auto a = token_stack.back();
+			auto a = std::move(token_stack.back());
 			token_stack.pop_back();
-			auto b = token_stack.back();
+			auto b = std::move(token_stack.back());
 			token_stack.pop_back();
 
 			{
@@ -439,9 +441,9 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		break;
 		case FUNC::FUNC_COMP_RIGHT:
 		{
-			auto b = token_stack.back();
+			auto b = std::move(token_stack.back());
 			token_stack.pop_back();
-			auto a = token_stack.back();
+			auto a = std::move(token_stack.back());
 			token_stack.pop_back();
 
 			{
@@ -463,7 +465,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		break;
 		case FUNC::FUNC_FIND:
 		{
-			auto a = token_stack.back();
+			auto a = std::move(token_stack.back());
 			token_stack.pop_back();
 
 			x.return_value = Find(global, a.ToString());
@@ -472,7 +474,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		break;
 		case FUNC::FUNC_RETURN_VALUE:
 		{
-			token_stack.push_back(x.return_value[x.return_value_now]);
+			token_stack.push_back(x.return_value[x.return_value_now].clone());
 		}
 		break;
 		case FUNC::FUNC_NEXT:
@@ -484,7 +486,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			fileName = fileName.substr(1, fileName.size() - 2);
 			token_stack.pop_back();
 
-			clau_parser::UserType* dir = token_stack.back().workspace.reader->GetUT();
+			clau_parser::UserType* dir = token_stack.back().workspace.GetReader()->GetUT();
 			token_stack.pop_back();
 
 			clau_parser::LoadData::LoadDataFromFile(fileName, *dir, 0, 0);
@@ -499,32 +501,30 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			p.parse(fileName, d, 0);
 			
 			x.return_value.clear();
-			token_stack.back().workspacej.reader = 
-				wiz::SmartPtr<claujson::Explorer>(new claujson::Explorer(d.Get()));
 
 			Token temp;
-			temp.SetWorkspaceJ(token_stack.back().workspacej.reader);
+			temp.SetWorkspaceJ(new claujson::Explorer(d.Get()));
 			x.return_value.push_back(std::move(temp));
 			x.return_value_now = 0;
 		}
 		break;
 		case FUNC::FUNC_ENTER:
 			if (token_stack.back().IsWorkspace()) {
-				token_stack.back().workspace.reader->Enter();
+				token_stack.back().workspace.GetReader()->Enter();
 				token_stack.pop_back();
 			}
 			else if (token_stack.back().IsWorkspaceJ()) {
-				token_stack.back().workspacej.reader->Enter();
+				token_stack.back().workspacej.GetReader()->Enter();
 				token_stack.pop_back();
 			}
 			break;
 		case FUNC::FUNC_QUIT:
 			if (token_stack.back().IsWorkspace()) {
-				token_stack.back().workspace.reader->Quit();
+				token_stack.back().workspace.GetReader()->Quit();
 				token_stack.pop_back();
 			}
 			else if (token_stack.back().IsWorkspaceJ()) {
-				token_stack.back().workspacej.reader->Quit();
+				token_stack.back().workspacej.GetReader()->Quit();
 				token_stack.pop_back();
 			}
 			break;
@@ -534,12 +534,12 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 
 			token_stack.pop_back();
 			if (token_stack.back().IsWorkspace()) {
-				token_stack.back().workspace.reader->SetKey(name);
+				token_stack.back().workspace.GetReader()->SetKey(name);
 
 				token_stack.pop_back();
 			}
 			else if (token_stack.back().IsWorkspaceJ()) {
-				token_stack.back().workspacej.reader->ChangeKey(claujson::_Value(name));
+				token_stack.back().workspacej.GetReader()->ChangeKey(claujson::_Value(name));
 
 				token_stack.pop_back();
 			}
@@ -551,14 +551,14 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 
 			token_stack.pop_back();
 			if (token_stack.back().IsWorkspace()) {
-				token_stack.back().workspace.reader->SetData(value);
+				token_stack.back().workspace.GetReader()->SetData(value);
 
 				token_stack.pop_back();
 			}
 			else if (token_stack.back().IsWorkspaceJ()) {
 				claujson::Document d;
 				p.parse_str(value, d, 1);
-				token_stack.back().workspacej.reader->Get() = std::move(d.Get());
+				token_stack.back().workspacej.GetReader()->Get() = std::move(d.Get());
 
 				token_stack.pop_back();
 			}
@@ -568,7 +568,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 
 			if (token_stack.back().IsWorkspace()) {
 				Token token;
-				token.SetString(token_stack.back().workspace.reader->GetKey());
+				token.SetString(token_stack.back().workspace.GetReader()->GetKey());
 
 				token_stack.pop_back();
 				token_stack.push_back(std::move(token));
@@ -576,7 +576,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			else if (token_stack.back().IsWorkspaceJ()) {
 				Token token;
 				bool e = false; // error flag
-				token.SetString(token_stack.back().workspacej.reader->GetKey().get_string().get_std_string(e));
+				token.SetString(token_stack.back().workspacej.GetReader()->GetKey().get_string().get_std_string(e));
 				token.SetString("\"" + token.ToString() + "\"");
 				token_stack.pop_back();
 				token_stack.push_back(std::move(token));
@@ -586,14 +586,14 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 
 			if (token_stack.back().IsWorkspace()) {
 				Token token;
-				token.SetString(token_stack.back().workspace.reader->GetData());
+				token.SetString(token_stack.back().workspace.GetReader()->GetData());
 
 				token_stack.pop_back();
 				token_stack.push_back(std::move(token));
 			}
 			else if (token_stack.back().IsWorkspaceJ()) {
 				Token token;
-				auto& x = token_stack.back().workspacej.reader->Get();
+				auto& x = token_stack.back().workspacej.GetReader()->Get();
 				if (x.is_int()) {
 					token.SetInt(x.get_integer());
 				}
@@ -620,7 +620,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 					token.SetString("");
 				}
 				
-				//token.SetString(token_stack.back().workspacej.reader->Get().convert_primitive_to_std_string());
+				//token.SetString(token_stack.back().workspacej.GetReader()->Get().convert_primitive_to_std_string());
 
 				token_stack.pop_back();
 				token_stack.push_back(std::move(token));
@@ -629,14 +629,14 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		case FUNC::FUNC_GET_IDX:
 			if (token_stack.back().IsWorkspace()) {
 				Token token;
-				token.SetInt(token_stack.back().workspace.reader->GetIdx());
+				token.SetInt(token_stack.back().workspace.GetReader()->GetIdx());
 
 				token_stack.pop_back();
 				token_stack.push_back(std::move(token));
 			}
 			else if (token_stack.back().IsWorkspaceJ()) {
 				Token token;
-				token.SetInt(token_stack.back().workspacej.reader->GetIdx());
+				token.SetInt(token_stack.back().workspacej.GetReader()->GetIdx());
 
 				token_stack.pop_back();
 				token_stack.push_back(std::move(token));
@@ -650,16 +650,18 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			auto a = token_stack.back().ToInt();
 			token_stack.pop_back();
 			if (token_stack.back().IsWorkspace()) {
-				auto space = token_stack.back().workspace;
+				auto& space = token_stack.back().workspace;
+				
+				space.GetReader()->SetIndex(a);
+				
 				token_stack.pop_back();
-
-				space.reader->SetIndex(a);
 			}
 			else if (token_stack.back().IsWorkspaceJ()) {
-				auto space = token_stack.back().workspacej;
- 				token_stack.pop_back();
-
-				space.reader->SetIdx(a);
+				auto& space = token_stack.back().workspacej;
+ 			
+				space.GetReader()->SetIdx(a);
+				
+				token_stack.pop_back();
 			}
 		}
 		break;
@@ -689,7 +691,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			Token temp;
 			temp.SetBool(result);
 
-			token_stack.push_back(temp);
+			token_stack.push_back(std::move(temp));
 		}
 		break;
 		case FUNC::FUNC_AND:
@@ -707,7 +709,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			Token temp;
 			temp.SetBool(result);
 
-			token_stack.push_back(temp);
+			token_stack.push_back(std::move(temp));
 		}
 
 		break;
@@ -725,27 +727,30 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 
 			temp.SetBool(result);
 
-			token_stack.push_back(temp);
+			token_stack.push_back(std::move(temp));
 		}
 		break;
 		case FUNC::FUNC_GET_NOW:
 			if (token_stack.back().IsWorkspace()) {
-				auto space = token_stack.back().workspace;
+				auto& space = token_stack.back().workspace;
+				
+				Token temp;
+				temp.SetWorkspace(space.GetReader());
+
 				token_stack.pop_back();
 
-				Token temp;
-				temp.SetWorkspace(space.reader);
-
-				token_stack.push_back(temp);
+				token_stack.push_back(std::move(temp));
 			}
 			else if (token_stack.back().IsWorkspaceJ()) {
-				auto space = token_stack.back().workspacej;
-				token_stack.pop_back();
+				auto& space = token_stack.back().workspacej;
+				
 
 				Token temp;
-				temp.SetWorkspaceJ(space.reader);
+				temp.SetWorkspaceJ(space.GetReader());
 
-				token_stack.push_back(temp);
+				token_stack.pop_back();
+
+				token_stack.push_back(std::move(temp));
 			}
 		break;
 
@@ -798,28 +803,28 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		break;
 		case FUNC::FUNC_NOT:
 		{
-			auto a = token_stack.back();
+			auto a = std::move(token_stack.back());
 			token_stack.pop_back();
 
 			a.SetBool(!a.ToBool());
 
-			token_stack.push_back(a);
+			token_stack.push_back(std::move(a));
 		}
 		break;
 		case FUNC::FUNC_NOT_EMPTY:
 		{
-			Token token = token_stack.back();
+			Token token = std::move(token_stack.back());
 			token_stack.pop_back();
 			
 			if (token.IsWorkspace()) {
 				Token temp;
-				temp.SetBool(token.workspace.reader->GetIdx() >= token.workspace.reader->Length());
-				token_stack.push_back(temp);
+				temp.SetBool(token.workspace.GetReader()->GetIdx() >= token.workspace.GetReader()->Length());
+				token_stack.push_back(std::move(temp));
 			}
 			else if (token.IsWorkspaceJ()) {
 				Token temp;
-				temp.SetBool(!token.workspacej.reader->IsEndOfGroup());
-				token_stack.push_back(temp);
+				temp.SetBool(!token.workspacej.GetReader()->IsEndOfGroup());
+				token_stack.push_back(std::move(temp));
 			}
 		}
 		break;
@@ -827,7 +832,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			if (token_stack.back().IsWorkspace()) {
 				Token token;
 
-				token.SetBool(token_stack.back().workspace.reader->IsGroup());
+				token.SetBool(token_stack.back().workspace.GetReader()->IsGroup());
 
 				token_stack.pop_back();
 
@@ -836,7 +841,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			else if (token_stack.back().IsWorkspaceJ()) {
 				Token token;
 
-				token.SetBool(token_stack.back().workspacej.reader->Get().is_structured()); // array or object
+				token.SetBool(token_stack.back().workspacej.GetReader()->Get().is_structured()); // array or object
 
 				token_stack.pop_back();
 
@@ -848,7 +853,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			if (token_stack.back().IsWorkspace()) {
 				Token token;
 
-				token.SetBool(!token_stack.back().workspace.reader->IsGroup());
+				token.SetBool(!token_stack.back().workspace.GetReader()->IsGroup());
 
 				token_stack.pop_back();
 
@@ -857,7 +862,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			else if (token_stack.back().IsWorkspaceJ()) {
 				Token token;
 
-				token.SetBool(token_stack.back().workspacej.reader->Get().is_primitive());
+				token.SetBool(token_stack.back().workspacej.GetReader()->Get().is_primitive());
 
 				token_stack.pop_back();
 
@@ -867,14 +872,14 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 		case FUNC::FUNC_GET_SIZE: // for array or object?
 			if (token_stack.back().IsWorkspace()) {
 				Token token;
-				token.SetString(std::to_string(token_stack.back().workspace.reader->Length()));
+				token.SetString(std::to_string(token_stack.back().workspace.GetReader()->Length()));
 				token_stack.pop_back();
 
 				token_stack.push_back(std::move(token));
 			}
 			else if (token_stack.back().IsWorkspaceJ()) {
 				Token token;
-				token.SetString(std::to_string(token_stack.back().workspacej.reader->Size()));
+				token.SetString(std::to_string(token_stack.back().workspacej.GetReader()->Size()));
 				token_stack.pop_back();
 
 				token_stack.push_back(std::move(token));
@@ -882,20 +887,22 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			break;
 		case FUNC::FUNC_CLONE: // ?
 			if (token_stack.back().IsWorkspace()) {
-				auto a = token_stack.back().workspace;
-				token_stack.pop_back();
-
+				auto& a = token_stack.back().workspace;
+				
 				Token b;
-				b.SetWorkspace(new clau_parser::Reader(*a.reader));
-				token_stack.push_back(b);
+				b.SetWorkspace(new clau_parser::Reader(*a.GetReader()));
+				
+				token_stack.pop_back();
+				token_stack.push_back(std::move(b));
 			}
 			else if (token_stack.back().IsWorkspaceJ()) {
-				auto a = token_stack.back().workspacej;
-				token_stack.pop_back();
-
+				auto& a = token_stack.back().workspacej;
+			
 				Token b;
-				b.SetWorkspaceJ(new claujson::Explorer(*a.reader));
-				token_stack.push_back(b);
+				b.SetWorkspaceJ(new claujson::Explorer(*a.GetReader()));
+				
+				token_stack.pop_back();
+				token_stack.push_back(std::move(b));
 			}
 		break;
 
@@ -910,7 +917,7 @@ std::vector<Token> VM::Run(const std::string& id, clau_parser::UserType* global,
 			}
 
 			for (int i = 0; i < x.event_data[x.now]; ++i) {
-				vec.push_back(token_stack.back());
+				vec.push_back(std::move(token_stack.back()));
 				token_stack.pop_back();
 			}
 			for (int i = vec.size() - 1; i >= 0; --i) {

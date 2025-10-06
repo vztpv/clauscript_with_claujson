@@ -29,7 +29,7 @@ int main(void)
 	int last = clock();
 	std::cout << last - start << "ms\n";
 	
-	clau_parser::LoadData::Save(global, "output.eu4");
+	//clau_parser::LoadData::Save(global, "output.eu4");
 
 	return 0;
 }

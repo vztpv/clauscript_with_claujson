@@ -21,7 +21,8 @@ std::vector<Token> FindValue(clau_parser::UserType* ut, const std::string& str)
 	{
 		Token token;
 		token.SetString({});
-		return { token };
+		result.push_back(std::move(token));
+		return result;
 	}
 	else {
 		auto x = clau_parser::UserType::Find(ut, str.substr(0, idx + 1));
@@ -36,7 +37,7 @@ std::vector<Token> FindValue(clau_parser::UserType* ut, const std::string& str)
 
 				Token temp;
 				temp.SetString(x.second[i]->GetItemList(itemIdx).Get(0));
-				result.push_back(temp);
+				result.push_back(std::move(temp));
 			}
 			else {
 				if (itemName == "_") {
@@ -48,7 +49,7 @@ std::vector<Token> FindValue(clau_parser::UserType* ut, const std::string& str)
 						Token tkn;
 						tkn.SetString(temp[j].Get(0));
 
-						result.push_back(tkn);
+						result.push_back(std::move(tkn));
 					}
 				}
 			}
@@ -73,7 +74,7 @@ void _MakeByteCode(clau_parser::UserType* ut, Event* e) {
 					Token token(ut);
 					token.SetString(ut->GetItemList(it_count).GetName());
 
-					e->input->push_back(token);
+					e->input->push_back(std::move(token));
 				}
 
 				e->event_data.push_back(FUNC::CONSTANT);
@@ -100,7 +101,7 @@ void _MakeByteCode(clau_parser::UserType* ut, Event* e) {
 								Token token(ut);
 								token.SetString(tokens[i]);
 
-								e->input->push_back(token);
+								e->input->push_back(std::move(token));
 								e->event_data.push_back(FUNC::CONSTANT);
 								e->event_data.push_back(e->input->size() - 1);
 								e->event_data.push_back(FUNC::DIR);
@@ -125,7 +126,7 @@ void _MakeByteCode(clau_parser::UserType* ut, Event* e) {
 								Token token(ut);
 								token.SetString(tokens[i]);
 
-								e->input->push_back(token);
+								e->input->push_back(std::move(token));
 								e->event_data.push_back(FUNC::CONSTANT);
 								e->event_data.push_back(e->input->size() - 1);
 							}
@@ -136,7 +137,7 @@ void _MakeByteCode(clau_parser::UserType* ut, Event* e) {
 
 						token.SetString(ut->GetItemList(it_count).Get());
 
-						e->input->push_back(token);
+						e->input->push_back(std::move(token));
 
 						e->event_data.push_back(FUNC::CONSTANT);
 						e->event_data.push_back(e->input->size() - 1);
@@ -221,7 +222,7 @@ void _MakeByteCode(clau_parser::UserType* ut, Event* e) {
 
 								token.SetString(tokens[i]);
 
-								e->input->push_back(token);
+								e->input->push_back(std::move(token));
 								e->event_data.push_back(FUNC::CONSTANT);
 								e->event_data.push_back(e->input->size() - 1);
 								e->event_data.push_back(FUNC::DIR);
@@ -246,7 +247,7 @@ void _MakeByteCode(clau_parser::UserType* ut, Event* e) {
 
 								token.SetString(tokens[i]);
 
-								e->input->push_back(token);
+								e->input->push_back(std::move(token));
 								e->event_data.push_back(FUNC::CONSTANT);
 								e->event_data.push_back(e->input->size() - 1);
 							}
@@ -257,7 +258,7 @@ void _MakeByteCode(clau_parser::UserType* ut, Event* e) {
 
 						token.SetString(ut->GetItemList(it_count).Get());
 
-						e->input->push_back(token);
+						e->input->push_back(std::move(token));
 
 						e->event_data.push_back(FUNC::CONSTANT);
 						e->event_data.push_back(e->input->size() - 1);
@@ -332,7 +333,7 @@ void _MakeByteCode(clau_parser::UserType* ut, Event* e) {
 							Token temp;
 							temp.ut_val = wiz::SmartPtr<clau_parser::UserType>(new clau_parser::UserType(*ut->GetUserTypeList(ut_count)));
 
-							e->input->push_back(temp);
+							e->input->push_back(std::move(temp));
 							e->event_data.push_back(e->input->size() - 1);
 						}
 					}
@@ -347,7 +348,7 @@ void _MakeByteCode(clau_parser::UserType* ut, Event* e) {
 							Token temp;
 							temp.ut_val = wiz::SmartPtr<clau_parser::UserType>(new clau_parser::UserType(*ut->GetUserTypeList(ut_count)));
 
-							e->input->push_back(temp);
+							e->input->push_back(std::move(temp));
 							e->event_data.push_back(e->input->size() - 1);
 						}
 					}
@@ -559,14 +560,14 @@ void _MakeByteCode(clau_parser::UserType* ut, Event* e) {
 
 					// todo - add processing. errors..
 
-					e->input->push_back(token);
+					e->input->push_back(std::move(token));
 				}
 				else {
 					Token token;
 
 					token.SetString(std::move(name));
 
-					e->input->push_back(token);
+					e->input->push_back(std::move(token));
 					e->event_data.push_back(FUNC::CONSTANT);
 					e->event_data.push_back(e->input->size() - 1);
 				}

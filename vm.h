@@ -19,10 +19,108 @@
 
 using namespace std::literals;
 
-template <class T, class T2>
-using myMap = std::unordered_map<T, T2>;
+template<class key, class value>
+class my_flat_map {
+private:
+	std::vector<std::pair<key, value>> data;
+public:
+	my_flat_map() {
+		//
+	}
+	~my_flat_map() {
+		//
+	}
+	my_flat_map(const my_flat_map&) = default;
+	my_flat_map(my_flat_map&& other) noexcept {
+		data = std::move(other.data);
+	}
+	my_flat_map& operator=(const my_flat_map&) = default;
+	my_flat_map& operator=(my_flat_map&& other) noexcept {
+		if (this != &other) {
+			data = std::move(other.data);
+		}
+		return *this;
+	}
+public:
+	void clear() {
+		data.clear();
+	}
+	size_t size() const {
+		return data.size();
+	}
+	bool empty() const {
+		return data.empty();
+	}
+	void insert(const std::pair<key, value>& p) {
+		for (auto& x : data) {
+			if (x.first == p.first) {
+				x.second = p.second;
+				return;
+			}
+		}
+		data.push_back(p);
+	}
+	void insert(std::pair<key, value>&& p) {
+		for (auto& x : data) {
+			if (x.first == p.first) {
+				x.second = std::move(p.second);
+				return;
+			}
+		}
+		data.push_back(std::move(p));
+	}
+	value* find(const key& k) {
+		for (auto& x : data) {
+			if (x.first == k) {
+				return &x.second;
+			}
+		}
+		return nullptr;
+	}
+	const value* find(const key& k) const {
+		for (const auto& x : data) {
+			if (x.first == k) {
+				return &x.second;
+			}
+		}
+		return nullptr;
+	}
+	value& operator[](const key& k) {
+		for (auto& x : data) {
+			if (x.first == k) {
+				return x.second;
+			}
+		}
+		data.push_back({ k, value() });
+		return data.back().second;
+	}
+	value& operator[](key&& k) {
+		for (auto& x : data) {
+			if (x.first == k) {
+				return x.second;
+			}
+		}
+		data.push_back({ std::move(k), value() });
+		return data.back().second;
+	}
+	void erase(const key& k) {
+		for (auto it = data.begin(); it != data.end(); ++it) {
+			if (it->first == k) {
+				data.erase(it);
+				return;
+			}
+		}
+	}
+	auto begin() { return data.begin(); }
+	auto end() { return data.end(); }
+	auto begin() const { return data.begin(); }
+	auto end() const { return data.end(); }
+};
 
-enum FUNC {
+template <class T, class T2>
+using myMap = my_flat_map<T, T2>;
+
+enum FUNC : uint64_t {
 	NONE = 0, TRUE, FALSE, FUNC_IS_INT, FUNC_IS_FLOAT, FUNC_GET_GLOBAL, FUNC_SET_GLOBAL, FUNC_MAKE_GLOBAL, FUNC_SPLIT, FUNC_CLEAR_GLOBAL,
 	FUNC_REMOVE, FUNC_COUNT_GLOBAL,
 	FUNC_SEARCH, FUNC_QUERY, FUNC_ASSIGN, FUNC_GET, FUNC_FIND, FUNC_WHILE, FUNC_RETURN_VALUE, FUNC_IS_END,
@@ -35,7 +133,7 @@ enum FUNC {
 	FUNC_PRINT, 
 	KEY, VALUE, SIZE // chk?
 };
-inline const char* func_to_str[FUNC::SIZE] = {
+inline const char* func_to_str[(uint64_t)FUNC::SIZE] = {
 	"TRUE", "FALSE", 
 	"IS_INT", "IS_FLOAT",
 	"GET_GLOBAL", "SET_GLOBAL",
@@ -57,13 +155,39 @@ inline const char* func_to_str[FUNC::SIZE] = {
 };
 
 class Workspace {
+private:
+	clau_parser::Reader* reader = nullptr;
 public:
-	wiz::SmartPtr<clau_parser::Reader> reader;
-public:
-	Workspace(clau_parser::UserType* ut = nullptr) {
-		if (reader) {
-			*reader = clau_parser::Reader(ut);
+	Workspace(const clau_parser::Reader* ut = nullptr) {
+		reader = const_cast<clau_parser::Reader*>(ut);
+	}
+	Workspace(const Workspace&) = default;
+	Workspace& operator=(const Workspace&) = default;
+	Workspace(Workspace&& other) noexcept {
+		reader = other.reader;
+		other.reader = nullptr;
+	}
+	Workspace& operator=(Workspace&& other) noexcept {
+		if (this != &other) {
+			if (reader) {
+				//delete reader;
+			}
+			reader = other.reader;
+			other.reader = nullptr;
 		}
+		return *this;
+	}
+	~Workspace() {
+		if (reader) {
+		//	delete reader;
+		}
+	}
+public:
+	clau_parser::Reader* GetReader() {
+		return reader;
+	}
+	const clau_parser::Reader* GetReader() const {
+		return reader;
 	}
 };
 
@@ -278,119 +402,230 @@ inline std::ostream& operator<<(std::ostream& out, ValueType t) {
 
 // for json
 class WorkspaceJ {
+private:
+	claujson::Explorer* reader;
 public:
-	wiz::SmartPtr<claujson::Explorer> reader;
-public:
-	WorkspaceJ() { }
+	WorkspaceJ() : reader(nullptr) { }
 
-	WorkspaceJ(claujson::_Value& json) {
-		if (reader) {
-			*reader = claujson::Explorer(json);
+	WorkspaceJ(const claujson::Explorer* exp) {
+		reader = const_cast<claujson::Explorer*>(exp);
+	}
+
+	WorkspaceJ(const WorkspaceJ& wj) = default;
+	WorkspaceJ(WorkspaceJ&& wj) noexcept {
+		reader = wj.reader;
+		wj.reader = nullptr;
+	}
+
+	WorkspaceJ& operator=(const WorkspaceJ& wj) = default;
+
+	WorkspaceJ& operator=(WorkspaceJ&& wj) noexcept {
+		if (this != &wj) {
+			if (reader) {
+			//	delete reader;
+			}
+			reader = wj.reader;
+			wj.reader = nullptr;
 		}
+		return *this;
+	}
+
+	~WorkspaceJ() {
+		if (reader) {
+		//	delete reader;
+		}
+	}
+public:
+	claujson::Explorer* GetReader() {
+		return reader;
+	}
+	const claujson::Explorer* GetReader() const {
+		return reader;
 	}
 };
 
 class Token {
 public:
-	FUNC func = FUNC::NONE;
-	
+	enum Type : uint16_t { INT = 1, FLOAT = 2, STRING = 4, FUNC_ = 8, USERTYPE = 16, WORKSPACE = 32, WORKSPACEJ = 64, 
+		BOOL = 128, PARAMETER = 256, LOCAL = 512, VIEW = 1024, NONE = 2048 };
 	union {
-		mutable long long int_val = 0;
-		mutable long double float_val;
+		FUNC func = FUNC::NONE; // 0
+		mutable long long int_val;
+		mutable long double float_val;	
+		clau_parser::UserType* ut_val;
+		Workspace workspace;
+		WorkspaceJ workspacej;
+		std::string* str_val;
 	};
-	
-	mutable std::string str_val;
-
-	enum Type { INT = 1, FLOAT = 2, STRING = 4, FUNC_ = 8, USERTYPE = 16, WORKSPACE = 32, WORKSPACEJ = 64, BOOL = 128, NONE = 256 };
 	mutable Type type = Type::NONE;
 
 public:
-	wiz::SmartPtr<clau_parser::UserType> ut_val = nullptr;
-	
-	Workspace workspace;
-	WorkspaceJ workspacej;
 
-
-	long long line = 0;
-
-
-	Token(clau_parser::UserType* ut = nullptr) : workspace(ut) {
-		//
+	Token() {
+		int_val = 0;
+		type = Type::NONE;
 	}
 
-	const std::string& ToString() const {
+	Token(const Token& t) = delete;
+
+	Token(Token&& t) noexcept {
+		type = t.type;
+		if (type & Type::STRING) {
+			str_val = t.str_val;
+			t.str_val = nullptr;
+		}
+		else {
+			int_val = t.int_val;
+		}
+		
+		if (type ==  Type::WORKSPACE) {
+			new (&workspace) Workspace(std::move(t.workspace));
+		}
+		if (type ==  Type::WORKSPACEJ) {
+			new (&workspacej) WorkspaceJ(std::move(t.workspacej));
+		}
+
+		t.type = Type::NONE;
+	}
+
+	Token clone() const {
+		// make clone
+		Token t;
+		t.type = type;
+		t.int_val = int_val;
+		
+		if (type & Type::STRING) {
+			t.str_val = str_val;
+			t.type = (Type)(t.type | Type::VIEW);
+		}
+		else if (type ==  Type::WORKSPACE) {
+			new (&t.workspace) Workspace(workspace.GetReader());
+		}
+		else if(type&Type::WORKSPACEJ) {
+			new (&t.workspacej) WorkspaceJ(workspacej.GetReader());
+		}
+		return t;
+	}
+
+	Token& operator=(const Token& t) = delete;
+
+	Token& operator=(Token&& t) noexcept
+	{
+		if (this != &t) {
+			type = t.type;
+
+			if (t.type ==  Type::WORKSPACE) {
+				new (&workspace) Workspace(std::move(t.workspace));
+			}
+			else if (t.type ==  Type::WORKSPACEJ) {
+				new (&workspacej) WorkspaceJ(std::move(t.workspacej));
+			}
+			else {
+				std::swap(int_val, t.int_val);
+			}
+
+			t.type = Type::NONE;
+		}
+		return *this;
+	}
+
+	~Token() {
+		if (type ==  Type::WORKSPACE) {
+			workspace.~Workspace();
+		}
+		else if (type ==  Type::WORKSPACEJ) {
+			workspacej.~WorkspaceJ();
+		}
+		else if (type & Type::STRING) {
+			if (type & Type::VIEW) {
+				// do nothing
+			}
+			else if (str_val) {
+				delete str_val;
+			}
+		}
+	}
+
+	Token(clau_parser::UserType* ut) {
+		ut_val = ut;
+		type = Type::USERTYPE;
+	}
+
+	std::string ToString() const {
 
 		if (type & Type::STRING) {
-			return str_val;
+			return *str_val;
 		}
 
-		if (type & Type::INT) {
-			str_val = std::to_string(int_val);
-			type = static_cast<Type>(type | Type::STRING);
-			return str_val;
+		if (type == Type::INT) {
+			return std::to_string(int_val);
 		}
 
-		if (type & Type::FLOAT) {
-			str_val = std::to_string(float_val);
-			type = static_cast<Type>(type | Type::STRING);
-			return str_val;
+		if (type ==  Type::FLOAT) {
+			return std::to_string(float_val);
 		}
 
 
-		if (type & Type::BOOL) {
-			str_val = int_val ? "TRUE" : "FALSE";
-			type = static_cast<Type>(type | Type::STRING);
-			return str_val;
+		if (type ==  Type::BOOL) {
+			return int_val ? "TRUE" : "FALSE";
 		}
 		// throw error?
 
-		return str_val;
+		return {};
 	}
 	long long ToInt() const {
-		if (type & Type::INT) {
+		if (type ==  Type::INT) {
 			return int_val;
 		}
 
-		if (type & Type::FLOAT) {
+		if (type ==  Type::FLOAT) {
 			return float_val;
 		}
 
 		if (type & Type::STRING) {
-			int_val = std::stoll(str_val);
-			type = static_cast<Type>(type | Type::INT);
+			int x = std::stoll(*str_val);	
+			if (!(type & Type::VIEW)) {
+				delete str_val;
+			}
+			int_val = x;
+			type = (Type::INT);
 			return int_val;
 		}
 
 		return 0;
 	}
 	long double ToFloat() const {
-		if (type & Type::FLOAT) {
+		if (type ==  Type::FLOAT) {
 			return float_val;
 		}
 
-		if (type & Type::INT) {
+		if (type ==  Type::INT) {
 			return int_val;
 		}
 
 		if (type & Type::STRING) {
-			float_val = std::stold(str_val);
-			type = static_cast<Type>(type | Type::FLOAT);
+			double x = std::stold(*str_val);
+			if (!(type & Type::VIEW)) {
+				delete str_val;
+			}
+			float_val = x;
+			type = (Type::FLOAT);
 			return float_val;
 		}
 
 		return 0;
 	}
 	bool ToBool() const {
-		if (type & Type::BOOL) {
+		if (type ==  Type::BOOL) {
 			return int_val == 1;
 		}
 
-		if (type & Type::INT) {
+		if (type ==  Type::INT) {
 			type = static_cast<Type>(type | Type::BOOL);
 			return int_val;
 		}
 
-		if (type & Type::FLOAT) {
+		if (type ==  Type::FLOAT) {
 			type = static_cast<Type>(type | Type::BOOL);
 			return float_val;
 		}
@@ -398,42 +633,133 @@ public:
 		return false;
 	}
 	void SetString(const std::string& str) {
-		str_val = str;
+		if (type & Type::STRING) {
+			if (str_val) {
+				*str_val = str;
+			}
+		}
+		else {
+			str_val = new std::string(str);
+		}
 		type = Type::STRING;
 	}
 	void SetInt(long long x) {
+		if(type & Type::STRING) {
+			if (str_val) {
+				if (!(type & Type::VIEW)) {
+					delete str_val;
+				}
+			}
+		}
 		int_val = x;
 		type = Type::INT;
 	}
 	void SetFloat(long double x) {
+		if(type & Type::STRING) {
+			if (str_val) {
+				if (!(type & Type::VIEW)) {
+					delete str_val;
+				}
+			}
+		}
 		float_val = x;
 		type = Type::FLOAT;
 	}
-	void SetWorkspace(wiz::SmartPtr<clau_parser::Reader> ptr) {
-		workspace.reader = ptr;
+	void SetWorkspace(clau_parser::Reader* ptr) {
+		if (type & Type::STRING) {
+			if (str_val) {
+				if (!(type & Type::VIEW)) {
+					delete str_val;
+				}
+			}
+		}
+		new (&workspace) Workspace(ptr);
 		type = Type::WORKSPACE;
 	}
-	void SetWorkspaceJ(wiz::SmartPtr<claujson::Explorer> ptr) {
-		workspacej.reader = ptr;
+	void SetWorkspaceJ(claujson::Explorer* ptr) {
+		if (type & Type::STRING) {
+			if (str_val) {
+				if (!(type & Type::VIEW)) {
+					delete str_val;
+				}
+			}
+		}
+		new (&workspacej) WorkspaceJ(ptr);
 		type = Type::WORKSPACEJ;
 	}
 	void SetBool(bool x) {
+		if (type & Type::STRING) {
+			if (str_val) {
+				if (!(type & Type::VIEW)) {
+					delete str_val;
+				}
+			}
+		}
+
 		int_val = x ? 1 : 0;
 		type = Type::BOOL;
 	}
 	void SetFunc() {
+		if (type & Type::STRING) {
+			if (str_val) {
+				if (!(type & Type::VIEW)) {
+					delete str_val;
+				}
+			}
+		}
+
 		type = Type::FUNC_;
 	}
 
+	void ConvertParameter() const {
+		if (type & Type::STRING) {
+			if (str_val->starts_with("$parameter."sv)) {
+				type = static_cast<Type>(type | Type::PARAMETER);
+				*str_val = str_val->substr(11);
+			}
+		}
+	}
+
+	void ConvertLocal() const {
+		if (type & Type::STRING) {
+			if (str_val->starts_with("$local."sv)) {
+				type = static_cast<Type>(type | Type::LOCAL);
+				*str_val = str_val->substr(7);
+			}
+		}
+	}
+
+	bool IsParameter() const {
+		if (type & Type::PARAMETER) {
+			return true;
+		}
+
+		if(type & Type::STRING) {
+			return (str_val && str_val->starts_with("$parameter."sv));
+		}
+
+		return false;
+	}
+
+	bool IsLocal() const {
+		if (type & Type::LOCAL) {
+			return true;
+		}
+		if (type & Type::STRING) {
+			return (str_val && str_val->starts_with("$local."sv));
+		}
+		return false;
+	}
+
 	bool IsInt() const {
-		if (type & Type::INT) {
+		if (type ==  Type::INT) {
 			return true;
 		}
 
 		if (type & Type::STRING) {
 
 			int state = 0;
-			const auto& str = str_val;
+			const auto& str = *str_val;
 
 			for (int i = 0; i < str.size(); ++i) {
 				switch (state)
@@ -465,13 +791,13 @@ public:
 		return false;
 	}
 	bool IsFloat() const {
-		if (type & Type::FLOAT) {
+		if (type ==  Type::FLOAT) {
 			return true;
 		}
 
 		if (type & Type::STRING) {
 			int state = 0;
-			const auto& str = str_val;
+			const auto& str = *str_val;
 
 			for (int i = 0; i < str.size(); ++i) {
 				switch (state)
@@ -518,13 +844,13 @@ public:
 		return type & Type::STRING;
 	}
 	bool IsBool() const {
-		return type & Type::BOOL;
+		return type ==  Type::BOOL;
 	}
 	bool IsWorkspace() const {
-		return type & Type::WORKSPACE;
+		return type ==  Type::WORKSPACE;
 	}
 	bool IsWorkspaceJ() const {
-		return type & Type::WORKSPACEJ;
+		return type ==  Type::WORKSPACEJ;
 	}
 };
 
@@ -538,10 +864,65 @@ struct Event {
 	std::vector<int> event_data;
 	long long now = 0;
 	std::vector<Token> return_value;
-	long long return_value_now;
+	long long return_value_now = 0;
 	wiz::SmartPtr<std::vector<Token>> input; // ?
 	myMap<std::string, Token> parameter; // myMap
 	myMap<std::string, Token> local; // myMap
+
+	Event() {
+		//
+	}
+
+	~Event() {
+		//
+	}
+
+	Event(const Event&) = delete;
+	Event(Event&& e) noexcept {
+		id = std::move(e.id);
+		event_data = std::move(e.event_data);
+		now = e.now;
+		return_value = std::move(e.return_value);
+		return_value_now = e.return_value_now;
+		input = std::move(e.input);
+		parameter = std::move(e.parameter);
+		local = std::move(e.local);
+	}
+	Event& operator=(const Event&) = delete;
+	Event& operator=(Event&& e) noexcept {
+		if (this != &e) {
+			id = std::move(e.id);
+			event_data = std::move(e.event_data);
+			now = e.now;
+			return_value = std::move(e.return_value);
+			return_value_now = e.return_value_now;
+			input = std::move(e.input);
+			parameter = std::move(e.parameter);
+			local = std::move(e.local);
+		}
+		return *this;
+	}
+
+	Event clone() const {
+		Event e;
+		e.id = id;
+		e.event_data = event_data;
+		e.now = now;
+		for (auto& x : return_value) {
+			e.return_value.push_back(x.clone());
+		}
+		e.return_value_now = return_value_now;
+		if (input) {
+			e.input = wiz::SmartPtr<std::vector<Token>>(input);
+		}
+		for (auto& x : parameter) {
+			e.parameter.insert({ x.first, x.second.clone() });
+		}
+		for (auto& x : local) {
+			e.local.insert({ x.first, x.second.clone() });
+		}
+		return e;
+	}
 };
 
 
@@ -610,13 +991,13 @@ private:
 			}
 
 			if (x.empty()) {
-				x.push_back(temp);
+				x.push_back(std::move(temp));
 			}
 			else if (x.back() != ".." && temp == "..") {
 				x.pop_back();
 			}
 			else {
-				x.push_back(temp);
+				x.push_back(std::move(temp));
 			}
 		}
 
@@ -755,7 +1136,7 @@ private:
 		for (long long i = 0; i < uts.second.size(); ++i) {
 			Token _token;
 			_token.SetWorkspace(new clau_parser::Reader(uts.second[i]));
-			result.push_back(_token);
+			result.push_back(std::move(_token));
 		}
 
 		return result;
@@ -767,7 +1148,34 @@ public:
 		const myMap<std::string, Token>& parameter = myMap<std::string, Token>());
 
 	void Register(Event e) {
-		_event_list.insert(std::make_pair(e.id, e));
+		auto& x = e.input;
+
+		for (auto& _ : *x) {
+			if (_.IsInt()) {
+				_.ToInt();
+			}
+			else if(_.IsFloat()) {
+				_.ToFloat();
+			}
+			else if (_.IsString()) {
+				_.ConvertParameter();
+				_.ConvertLocal();
+			}
+			else if (_.IsBool()) {
+				_.ToBool();
+			}
+			else if (_.IsWorkspace()) {
+				// do nothing
+			}
+			else if (_.IsWorkspaceJ()) {
+				// do nothing
+			}
+			else {
+				// error?
+			}
+		}
+
+		_event_list.insert(std::make_pair(e.id, std::move(e)));
 	}
 
 private:
