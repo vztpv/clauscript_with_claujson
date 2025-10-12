@@ -15,17 +15,24 @@ int main(void)
 	clau_parser::LoadData::LoadDataFromFile("test.txt", global, 1, 0);
 
 	auto arr = global.GetUserTypeIdx("Event");
+	std::vector<std::string> ids;
+	ids.resize(arr.size());
+	int64_t count = 0;
 
 	for (auto x : arr) {
-		vm.Register(MakeByteCode(global.GetUserTypeList(x)));
-	}
-	for (int i = arr.size() - 1; i >= 0; --i) {
-		global.RemoveUserTypeList(arr[i]);
+		Event e;
+		EventCode code;
+		std::string& id = ids[count]; ++count;
+		vm.MakeByteCode(global.GetUserTypeList(x), e, code, id);
+		std::cout << id << "\n";
+		vm.Register(id, std::move(e), std::move(code));
 	}
 
+	for (auto& x : ids) {
+		std::cout << x << " ";
+	}
 	int start = clock();
 	vm.Run("main", &global);
-
 	int last = clock();
 	std::cout << last - start << "ms\n";
 	

@@ -7,6 +7,7 @@
 #include <regex>
 #include <map>
 #include <queue>
+#include <string>
 #include <unordered_map>
 
 #include "clau_parser.h"
@@ -19,13 +20,59 @@
 
 using namespace std::literals;
 
+
+template <class T, class U>
+inline bool compare(T&& a, U&& b) {
+	return std::equal(std::begin(a), std::end(a), std::begin(b), std::end(b));
+}
+
+inline bool compare(long long a, long long b) {
+	return a == b;
+}
+
+inline bool compare(const char* a, const char* b) {
+	// 포인터가 같으면 즉시 리턴
+	if (a == b) return true;
+
+	// 8바이트씩 비교 (64비트 시스템)
+	const uint64_t* wa = (const uint64_t*)(a);
+	const uint64_t* wb = (const uint64_t*)(b);
+
+	// 8바이트 정렬된 경우에만 워드 단위 비교
+	if (uintptr_t(a) % 8 == 0 &&
+		uintptr_t(b) % 8 == 0) {
+		while (true) {
+			uint64_t va = *wa;
+			uint64_t vb = *wb;
+
+			if (va != vb) return false;
+
+			// null 바이트 체크 (0바이트가 있으면 문자열 끝)
+			if ((va - 0x0101010101010101ULL) & ~va & 0x8080808080808080ULL) {
+				return true;
+			}
+
+			++wa;
+			++wb;
+		}
+	}
+
+	// 정렬되지 않은 경우 바이트 단위 비교
+	while (*a && *a == *b) {
+		++a;
+		++b;
+	}
+	return *a == *b;
+}
+
+// in my lang, parameter <- const!
 template<class key, class value>
 class my_flat_map {
 private:
 	std::vector<std::pair<key, value>> data;
 public:
 	my_flat_map() {
-		//
+		data.reserve(16);
 	}
 	~my_flat_map() {
 		//
@@ -53,7 +100,7 @@ public:
 	}
 	void insert(const std::pair<key, value>& p) {
 		for (auto& x : data) {
-			if (x.first == p.first) {
+			if (compare(x.first, p.first)) {
 				x.second = p.second;
 				return;
 			}
@@ -62,7 +109,7 @@ public:
 	}
 	void insert(std::pair<key, value>&& p) {
 		for (auto& x : data) {
-			if (x.first == p.first) {
+			if (compare(x.first, p.first)) {
 				x.second = std::move(p.second);
 				return;
 			}
@@ -71,32 +118,35 @@ public:
 	}
 	value* find(const key& k) {
 		for (auto& x : data) {
-			if (x.first == k) {
+			if (compare(x.first, k)) {
 				return &x.second;
 			}
 		}
 		return nullptr;
 	}
 	const value* find(const key& k) const {
-		for (const auto& x : data) {
-			if (x.first == k) {
+		for (auto& x : data) {
+			if (compare(x.first, k)) {
 				return &x.second;
 			}
 		}
 		return nullptr;
 	}
+	
 	value& operator[](const key& k) {
 		for (auto& x : data) {
-			if (x.first == k) {
+			if (compare(x.first, k)) {
 				return x.second;
 			}
 		}
 		data.push_back({ k, value() });
 		return data.back().second;
 	}
+
+
 	value& operator[](key&& k) {
 		for (auto& x : data) {
-			if (x.first == k) {
+			if (compare(x.first, k)) {
 				return x.second;
 			}
 		}
@@ -105,7 +155,7 @@ public:
 	}
 	void erase(const key& k) {
 		for (auto it = data.begin(); it != data.end(); ++it) {
-			if (it->first == k) {
+			if (compare(it->first, k)) {
 				data.erase(it);
 				return;
 			}
@@ -120,7 +170,7 @@ public:
 template <class T, class T2>
 using myMap = my_flat_map<T, T2>;
 
-enum FUNC : uint64_t {
+enum FUNC : uint16_t {
 	NONE = 0, TRUE, FALSE, FUNC_IS_INT, FUNC_IS_FLOAT, FUNC_GET_GLOBAL, FUNC_SET_GLOBAL, FUNC_MAKE_GLOBAL, FUNC_SPLIT, FUNC_CLEAR_GLOBAL,
 	FUNC_REMOVE, FUNC_COUNT_GLOBAL,
 	FUNC_SEARCH, FUNC_QUERY, FUNC_ASSIGN, FUNC_GET, FUNC_FIND, FUNC_WHILE, FUNC_RETURN_VALUE, FUNC_IS_END,
@@ -131,9 +181,11 @@ enum FUNC : uint64_t {
 	FUNC_SET_NAME, FUNC_GET_NAME, FUNC_GET_VALUE,
 	FUNC_SET_VALUE, FUNC_REMOVE_QUOTED, CONSTANT, THEN, WHILE_END, IF_END, START_DIR, DIR, END_DIR, 
 	FUNC_PRINT, 
+	NOTHING,
 	KEY, VALUE, SIZE // chk?
 };
 inline const char* func_to_str[(uint64_t)FUNC::SIZE] = {
+	"NONE",
 	"TRUE", "FALSE", 
 	"IS_INT", "IS_FLOAT",
 	"GET_GLOBAL", "SET_GLOBAL",
@@ -447,7 +499,7 @@ public:
 class Token {
 public:
 	enum Type : uint16_t { INT = 1, FLOAT = 2, STRING = 4, FUNC_ = 8, USERTYPE = 16, WORKSPACE = 32, WORKSPACEJ = 64, 
-		BOOL = 128, PARAMETER = 256, LOCAL = 512, VIEW = 1024, NONE = 2048 };
+		BOOL = 128, PARAMETER = 256, LOCAL = 512, VIEW = 1024, CSTRING = 2048, NONE = 4096 };
 	union {
 		FUNC func = FUNC::NONE; // 0
 		mutable long long int_val;
@@ -456,6 +508,7 @@ public:
 		Workspace workspace;
 		WorkspaceJ workspacej;
 		std::string* str_val;
+		const char* cstr_val;
 	};
 	mutable Type type = Type::NONE;
 
@@ -501,7 +554,7 @@ public:
 		else if (type ==  Type::WORKSPACE) {
 			new (&t.workspace) Workspace(workspace.GetReader());
 		}
-		else if(type&Type::WORKSPACEJ) {
+		else if (type == Type::WORKSPACEJ) {
 			new (&t.workspacej) WorkspaceJ(workspacej.GetReader());
 		}
 		return t;
@@ -557,6 +610,10 @@ public:
 			return *str_val;
 		}
 
+		if (type & Type::CSTRING) {
+			return std::string(cstr_val);
+		}
+
 		if (type == Type::INT) {
 			return std::to_string(int_val);
 		}
@@ -573,6 +630,18 @@ public:
 
 		return {};
 	}
+
+	const char* ToCString() const {
+		if (type & Type::STRING) {
+			return str_val->c_str();
+		}
+		if (type & Type::CSTRING) {
+			return cstr_val;
+		}
+		// throw error?
+		return "";
+	}
+
 	long long ToInt() const {
 		if (type ==  Type::INT) {
 			return int_val;
@@ -632,17 +701,31 @@ public:
 
 		return false;
 	}
-	void SetString(const std::string& str) {
+
+	void SetString(std::string str) {
 		if (type & Type::STRING) {
 			if (str_val) {
-				*str_val = str;
+				if (!(type & Type::VIEW)) {
+					*str_val = std::move(str);
+					return;
+				}
 			}
 		}
-		else {
-			str_val = new std::string(str);
-		}
+		str_val = new std::string(std::move(str));
 		type = Type::STRING;
 	}
+	void SetCString(const char* str) {
+		if (type & Type::STRING) {
+			if (str_val) {
+				if (!(type & Type::VIEW)) {
+					delete str_val;
+				}
+			}
+		}
+		cstr_val = str;	
+		type = Type::CSTRING;
+	}
+
 	void SetInt(long long x) {
 		if(type & Type::STRING) {
 			if (str_val) {
@@ -713,7 +796,7 @@ public:
 
 	void ConvertParameter() const {
 		if (type & Type::STRING) {
-			if (str_val->starts_with("$parameter."sv)) {
+			if (!(type & Type::LOCAL) && str_val->starts_with("$parameter."sv)) {
 				type = static_cast<Type>(type | Type::PARAMETER);
 				*str_val = str_val->substr(11);
 			}
@@ -722,7 +805,7 @@ public:
 
 	void ConvertLocal() const {
 		if (type & Type::STRING) {
-			if (str_val->starts_with("$local."sv)) {
+			if (!(type & Type::LOCAL) && str_val->starts_with("$local."sv)) {
 				type = static_cast<Type>(type | Type::LOCAL);
 				*str_val = str_val->substr(7);
 			}
@@ -857,17 +940,24 @@ public:
 
 std::vector<Token> FindValue(clau_parser::UserType* ut, const std::string& str);
 
+struct EventCode {
+	std::vector<int16_t> event_data;
+	std::vector<int64_t> constant_data; // pointing to input?
+	std::vector<Token> input; // real data.
+};
+
 struct Event {
 	//Workspace workspace; 
 	//WorkspaceJ workspacej; // for one json file?
-	std::string id;
-	std::vector<int> event_data;
+	//std::string id;
+	//std::vector<int> event_data;
+	EventCode* code = nullptr;
+
 	long long now = 0;
-	std::vector<Token> return_value;
-	long long return_value_now = 0;
-	wiz::SmartPtr<std::vector<Token>> input; // ?
-	myMap<std::string, Token> parameter; // myMap
-	myMap<std::string, Token> local; // myMap
+
+	Token return_value;
+	myMap<const char*, Token> parameter; // myMap
+	myMap<const char*, Token> local; // myMap
 
 	Event() {
 		//
@@ -879,24 +969,18 @@ struct Event {
 
 	Event(const Event&) = delete;
 	Event(Event&& e) noexcept {
-		id = std::move(e.id);
-		event_data = std::move(e.event_data);
 		now = e.now;
+		code = e.code;
 		return_value = std::move(e.return_value);
-		return_value_now = e.return_value_now;
-		input = std::move(e.input);
 		parameter = std::move(e.parameter);
 		local = std::move(e.local);
 	}
 	Event& operator=(const Event&) = delete;
 	Event& operator=(Event&& e) noexcept {
 		if (this != &e) {
-			id = std::move(e.id);
-			event_data = std::move(e.event_data);
 			now = e.now;
+			code = e.code;
 			return_value = std::move(e.return_value);
-			return_value_now = e.return_value_now;
-			input = std::move(e.input);
 			parameter = std::move(e.parameter);
 			local = std::move(e.local);
 		}
@@ -905,22 +989,18 @@ struct Event {
 
 	Event clone() const {
 		Event e;
-		e.id = id;
-		e.event_data = event_data;
+		
+		e.code = code;
 		e.now = now;
-		for (auto& x : return_value) {
-			e.return_value.push_back(x.clone());
-		}
-		e.return_value_now = return_value_now;
-		if (input) {
-			e.input = wiz::SmartPtr<std::vector<Token>>(input);
-		}
+		e.return_value = return_value.clone();
+
 		for (auto& x : parameter) {
 			e.parameter.insert({ x.first, x.second.clone() });
 		}
 		for (auto& x : local) {
 			e.local.insert({ x.first, x.second.clone() });
 		}
+
 		return e;
 	}
 };
@@ -1144,22 +1224,29 @@ private:
 public:
 
 
-	std::vector<Token> Run(const std::string& id, clau_parser::UserType* global,
-		const myMap<std::string, Token>& parameter = myMap<std::string, Token>());
+	std::vector<Token> Run(std::string str_id, clau_parser::UserType* global,
+		const myMap<const char*, Token>& parameter = myMap<const char*, Token>());
 
-	void Register(Event e) {
-		auto& x = e.input;
+	void Register(std::string& id, Event e, EventCode code) {
+		auto& x = code.input;
 
-		for (auto& _ : *x) {
+		for (auto& _ : x) {
 			if (_.IsInt()) {
 				_.ToInt();
 			}
-			else if(_.IsFloat()) {
+			else if (_.IsFloat()) {
 				_.ToFloat();
 			}
 			else if (_.IsString()) {
-				_.ConvertParameter();
-				_.ConvertLocal();
+				if (_.IsParameter()) {
+					_.ConvertParameter();
+				}
+				else if (_.IsLocal()) {
+					_.ConvertLocal();
+				}		
+				else {
+					//
+				}
 			}
 			else if (_.IsBool()) {
 				_.ToBool();
@@ -1175,17 +1262,22 @@ public:
 			}
 		}
 
-		_event_list.insert(std::make_pair(e.id, std::move(e)));
+		//std::cout << "chk " << id.c_str() << " " << _event_map.size() << "\n";
+
+		_event_code_list.insert(std::make_pair(_event_map[id.c_str()], std::move(code)));
+ 		_event_list.insert(std::make_pair(_event_map[id.c_str()], std::move(e)));
 	}
 
 private:
-	myMap<std::string, Event> _event_list;
+	void _MakeByteCode(clau_parser::UserType* ut, Event* e, EventCode* code, std::string* id = nullptr);
+public:
+	void MakeByteCode(clau_parser::UserType* ut, Event& e, EventCode& code, std::string& id);
+private:
+	myMap<int64_t, Event> _event_list;
+	myMap<int64_t, EventCode> _event_code_list;
+	myMap<const char*, int64_t> _event_map;
 };
 
-
-void _MakeByteCode(clau_parser::UserType* ut, Event* e);
-
-void Debug(const Event& e);
+void Debug(const EventCode& code);
 
 // need to exception processing.
-Event MakeByteCode(clau_parser::UserType* ut);

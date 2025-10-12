@@ -40,12 +40,12 @@ bool VM::EqualFunc(clau_parser::UserType* global, const clau_parser::ItemType<st
 	if (y.Get().starts_with("%event_"sv)) {
 		std::string event_id = y.Get().substr(7);
 
-		myMap<std::string, Token> param;
+		myMap<const char*, Token> param;
 
 		Token token;
-		token.SetString(x_name.empty() ? "EMPTY_NAME" : x_name);
+		token.SetCString(x_name.empty() ? "EMPTY_NAME" : x_name.c_str());
 		param["name"] = std::move(token);
-		token.SetString(x_value);
+		token.SetCString(x_value.c_str());
 		param["value"] = std::move(token);
 		token.SetBool(false);
 		param["is_user_type"] = std::move(token);
@@ -422,9 +422,9 @@ bool VM::InsertFunc(clau_parser::UserType* global, clau_parser::UserType* insert
 				if (x.ut->GetItemList(it_count).Get().starts_with("@%event_"sv)) {
 					std::string event_id = x.ut->GetItemList(it_count).Get().substr(8);
 
-					myMap<std::string, Token> param;
+					myMap<const char*, Token> param;
 					Token token;
-					token.SetString("EMPTY_STRING");
+					token.SetCString("EMPTY_STRING");
 					param["name"] = std::move(token);
 					token.SetBool(true);
 					param["is_user_type"] = std::move(token);
@@ -443,9 +443,9 @@ bool VM::InsertFunc(clau_parser::UserType* global, clau_parser::UserType* insert
 				if (x.ut->GetItemList(it_count).Get().starts_with("%event_"sv)) {
 					std::string event_id = x.ut->GetItemList(it_count).Get().substr(7);
 
-					myMap<std::string, Token> param;
+					myMap<const char*, Token> param;
 					Token token;
-					token.SetString(x.ut->GetItemList(it_count).GetName());
+					token.SetCString(x.ut->GetItemList(it_count).GetName().c_str());
 					param["name"] = std::move(token);
 					token.SetBool(true);
 					param["is_user_type"] = std::move(token);
@@ -554,12 +554,12 @@ bool VM::RemoveFunc(clau_parser::UserType* global, clau_parser::UserType* insert
 					auto temp = x.global->GetItemIdx("");
 
 					for (long long j = 0; j < temp.size(); ++j) {
-						myMap<std::string, Token> param;
+						myMap<const char*, Token> param;
 
 						Token token;
-						token.SetString("EMPTY_STRING");
+						token.SetCString("EMPTY_STRING");
 						param["name"] = std::move(token);
-						token.SetString(x.global->GetItemList(temp[j]).Get());
+						token.SetCString(x.global->GetItemList(temp[j]).Get().c_str());
 						param["value"] = std::move(token);
 						token.SetBool(false);
 						param["is_user_type"] = std::move(token);
@@ -584,22 +584,22 @@ bool VM::RemoveFunc(clau_parser::UserType* global, clau_parser::UserType* insert
 				if (x.ut->GetItemList(it_count).Get().starts_with("%event_"sv)) {
 					std::string event_id = x.ut->GetItemList(it_count).Get().substr(7);
 
-					auto name = x.ut->GetItemList(it_count).GetName().substr(1);
+					auto name = x.ut->GetItemList(it_count).GetName().c_str() + 1;
 					auto temp = x.global->GetItemIdx(name);
 
-					if (name.starts_with("&"sv) && name.size() >= 2) {
-						long long idx = std::stoll(name.substr(1));
+					if (name[0] == ('&') && strlen(name) >= 2) {
+						long long idx = std::stoll(name + 1);
 
 						if (idx < 0 || idx >= x.global->GetItemListSize()) { // .size()) {
 							return false;
 						}
 						auto valName = x.ut->GetItemList(it_count).Get();
 
-						myMap<std::string, Token> param;
+						myMap<const char*, Token> param;
 						Token token;
-						token.SetString(name);
+						token.SetCString(name);
 						param["name"] = std::move(token);
-						token.SetString(x.global->GetItemList(idx).Get());
+						token.SetCString(x.global->GetItemList(idx).Get().c_str());
 						param["value"] = std::move(token);
 						token.SetBool(false);
 						param["is_user_type"] = std::move(token);
@@ -613,11 +613,11 @@ bool VM::RemoveFunc(clau_parser::UserType* global, clau_parser::UserType* insert
 					}
 					else {
 						for (long long j = 0; j < temp.size(); ++j) {
-							myMap<std::string, Token> param;
+							myMap<const char*, Token> param;
 							Token token;
-							token.SetString(name);
+							token.SetCString(name);
 							param["name"] = std::move(token);
-							token.SetString(x.global->GetItemList(temp[j]).Get());
+							token.SetCString(x.global->GetItemList(temp[j]).Get().c_str());
 							param["value"] = std::move(token);
 							token.SetBool(false);
 							param["is_user_type"] = std::move(token);
@@ -757,11 +757,11 @@ bool VM::UpdateFunc(clau_parser::UserType* global, clau_parser::UserType* insert
 						}
 
 						for (long long j = 0; j < position.size(); ++j) {
-							myMap<std::string, Token> param;
+							myMap<const char*, Token> param;
 							Token token;
-							token.SetString(x.ut->GetItemList(it_count).GetName().substr(1));
+							token.SetCString(x.ut->GetItemList(it_count).GetName().c_str() + 1);
 							param["name"] = std::move(token);
-							token.SetString(x.global->GetItemList(position[j]).Get());
+							token.SetCString(x.global->GetItemList(position[j]).Get().c_str());
 							param["value"] = std::move(token);
 							token.SetBool(false);
 							param["is_user_type"] = std::move(token);
@@ -888,11 +888,11 @@ bool VM::SearchFunc(clau_parser::UserType* global, clau_parser::UserType* insert
 						}
 
 						for (long long j = 0; j < position.size(); ++j) {
-							myMap<std::string, Token> param;
+							myMap<const char*, Token> param;
 							Token token;
-							token.SetString(x.ut->GetItemList(it_count).GetName().substr(1));
+							token.SetCString(x.ut->GetItemList(it_count).GetName().c_str() + 1);
 							param["name"] = std::move(token);
-							token.SetString(x.global->GetItemList(position[j]).Get());
+							token.SetCString(x.global->GetItemList(position[j]).Get().c_str());
 							param["value"] = std::move(token);
 							token.SetBool(false);
 							param["is_user_type"] = std::move(token);
