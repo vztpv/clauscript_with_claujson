@@ -59,6 +59,60 @@ Event = { id = test3 $parameter = { name value is_user_type }
 
 #sum = 0.0
 
+Event = { id = iterate_json_fast
+    $parameter = { workspace }
+    $local = { idx size sum }
+
+    # local sum (global 대신)
+    $assign = { $local.sum 0.0 }
+
+    # workspace 초기화
+    $set_idx = { $parameter.workspace 0 }
+    $assign = { $local.size $get_size = { $parameter.workspace } }
+
+    $while { $COMP< = { @$parameter.workspace@$get_idx @$local.size@$get } }
+    {
+        # ----- 값 처리 (event call 제거) -----
+        $if { $is_float = { @$parameter.workspace@$get_value } } {
+            $assign = {
+                $local.sum
+                $add = { @$local.sum@$get @$parameter.workspace@$get_value }
+            }
+        }
+
+        # ----- group이면 recursive -----
+        $if { @$parameter.workspace@$is_group } {
+            $assign = { $local.idx @$parameter.workspace@$get_idx }
+
+            @$parameter.workspace@$enter
+
+			$call = {
+                  id = iterate_json_fast
+                  workspace = @$parameter.workspace
+            }
+
+            $assign = {
+                $local.sum
+                $add = {
+                    @$local.sum@$get
+                    @$return_value
+                }
+            }
+
+			@$parameter.workspace@$quit
+            $set_idx = { $parameter.workspace @$local.idx@$get }
+        }
+
+        # 다음 index
+        $set_idx = {
+            $parameter.workspace
+            $add = { @$parameter.workspace@$get_idx 1 }
+        }
+    }
+
+    $return = { @$local.sum@$get }
+}
+
 Event = { id = iterate_json $parameter = { workspace event } # recursive?
 	$local = { idx size }
 
@@ -112,12 +166,16 @@ Event = { id = main
 
 	$print = { make_global_end \n }
 
-	$call = { id = iterate_json workspace = @$return_value event = test_json }
+	$call = { id = iterate_json_fast workspace = @$return_value event = test_json }
 	
-	$print = { $get_global = { sum 0 } \n } # chk) $get_global = { sum }
+	$print = { @$return_value \n }
+
+	#$print = { $get_global = { sum 0 } \n } # chk) $get_global = { sum }
 
 	$return = { } 
+}
 
+Event = { id = main_
 
 	#$split = { @/./date@get date_test @. }
 	

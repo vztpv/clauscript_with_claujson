@@ -604,36 +604,70 @@ public:
 		type = Type::USERTYPE;
 	}
 
-	std::string ToString() const {
+
+	std::string& ToString() {
+		thread_local std::string result;
 
 		if (type & Type::STRING) {
 			return *str_val;
 		}
 
 		if (type & Type::CSTRING) {
-			return std::string(cstr_val);
+			result = std::string{ cstr_val };
+			*str_val = result;
+			type = Token::Type(type & Type::STRING);
+			return result;
 		}
 
 		if (type == Type::INT) {
-			return std::to_string(int_val);
+			result = std::to_string(int_val);
 		}
 
-		if (type ==  Type::FLOAT) {
-			return std::to_string(float_val);
+		if (type == Type::FLOAT) {
+			result = std::to_string(float_val);
 		}
 
 
-		if (type ==  Type::BOOL) {
-			return int_val ? "TRUE" : "FALSE";
+		if (type == Type::BOOL) {
+			result = int_val ? "TRUE"sv : "FALSE"sv;
 		}
-		// throw error?
 
-		return {};
+		return result;
 	}
 
-	const char* ToCString() const {
+	std::string_view ToString() const {
+		thread_local std::string result;
+
 		if (type & Type::STRING) {
-			return str_val->c_str();
+			return *str_val;
+		}
+
+		if (type & Type::CSTRING) {
+			result = std::string{ cstr_val };
+			*str_val = result;
+			type = Token::Type(type & Type::STRING);
+			return result;
+		}
+
+		if (type == Type::INT) {
+			result = std::to_string(int_val);
+		}
+
+		if (type == Type::FLOAT) {
+			result = std::to_string(float_val);
+		}
+
+
+		if (type == Type::BOOL) {
+			result = int_val ? "TRUE"sv : "FALSE"sv;
+		}
+		std::cout << "result is " << result << "\n";
+		return result;
+	}
+
+	std::string_view ToCString() const {
+		if (type & Type::STRING) {
+			return *str_val;
 		}
 		if (type & Type::CSTRING) {
 			return cstr_val;
@@ -956,8 +990,8 @@ struct Event {
 	long long now = 0;
 
 	Token return_value;
-	myMap<const char*, Token> parameter; // myMap
-	myMap<const char*, Token> local; // myMap
+	myMap<std::string_view, Token> parameter; // myMap
+	myMap<std::string_view, Token> local; // myMap
 
 	Event() {
 		//
@@ -1275,7 +1309,7 @@ public:
 private:
 	myMap<int64_t, Event> _event_list;
 	myMap<int64_t, EventCode> _event_code_list;
-	myMap<const char*, int64_t> _event_map;
+	myMap<std::string_view, int64_t> _event_map;
 };
 
 void Debug(const EventCode& code);
